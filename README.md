@@ -63,10 +63,6 @@ az keyvault key create --hsm-name <HSM Name> --name <HSM int Seal Key Name> --op
 ## Configure Vault
 ---
 
-### Configure Vault seal
-1. Update config file with seal info
-2. Perform unseal using "-migrate" switch
-
 ### Configure Vault Managed Key for Vault Root PKI
 
 ```
