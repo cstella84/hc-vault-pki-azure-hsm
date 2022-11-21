@@ -63,6 +63,10 @@ az keyvault key create --hsm-name <HSM Name> --name <HSM int Seal Key Name> --op
 ## Configure Vault
 ---
 
+### Configure Vault seal
+1. Update config file with seal info
+2. Perform unseal using "-migrate" switch
+
 ### Configure Vault Managed Key for Vault Root PKI
 
 ```
@@ -114,12 +118,18 @@ vault secrets tune -allowed-managed-keys=vault-root-pki pki-root
 3. Generate root certificate
 ```
 vault write -field=certificate pki-root/root/generate/kms \
+issuer_name="pki-root-issuer" \
 managed_key_name=vault-root-pki \
 common_name=<Common Name> \
-ttl=8760h
+ttl=8760h > root_ca.crt
 ```
 
-4. Configure root CA and CRL URLs
+4. Configure role for specifying issuer
+```
+vault write pki-root/roles/servers allow_any_name=true
+```
+
+5. Configure root CA and CRL URLs
 ```
 vault write pki-root/config/urls \
 issuing_certificates="$VAULT_ADDR/v1/pki/ca" \
@@ -141,6 +151,7 @@ vault secrets tune -allowed-managed-keys=vault-int-pki -max-lease-ttl=43800h pki
 3. Generate Int CA CSR for Root signing
 ```
 vault write -format=json pki-int/intermediate/generate/kms \
+issuer_name="pki-intermediate-issuer"
 managed_key_name=vault-int-pki \
 common_name=<Common Name> \
 ttl=8760h | jq -r '.data.csr' > pki_intermediate.csr
@@ -150,24 +161,31 @@ ttl=8760h | jq -r '.data.csr' > pki_intermediate.csr
 >Perform this step on the Root CA!
 ```
 vault write -format=json pki-root/root/sign-intermediate \
-     csr=@pki_intermediate.csr \
-     format=pem_bundle ttl="43800h" \
-     | jq -r '.data.certificate' > intermediate.cert.pem
+    issuer_ref="pki-root-issuer" \
+    csr=@pki_intermediate.csr \
+    format=pem_bundle ttl="43800h" \
+    | jq -r '.data.certificate' > intermediate.cert.pem
+```
+
+5. Import signed certificate back into Vault Int
+```
+vault write pki-int/intermediate/set-signed certificate=@intermediate.cert.pem
 ```
 
 ### Validate issuing a certificate using managed key backed root
 
-1. Configure a new role for a test domain
+1. Configure a new role for a test domain in `pki-int`
 ```
-vault write pki/roles/example-dot-com \
-allowed_domains="example.com" \
-allow_subdomains=true \
-max_ttl="720h"
+vault write pki-int/roles/example-dot-com \
+     issuer_ref="$(vault read -field=default pki-int/config/issuers)" \
+     allowed_domains="example.com" \
+     allow_subdomains=true \
+     max_ttl="720h"
 ```
 
 2. Request a new certificate for `test.example.com` based on the `example-dot-com` role.
 ```
-vault write -format=json pki/issue/example-dot-com \
+vault write pki-int/issue/example-dot-com \
 common_name="test.example.com" ttl="24"
 ```
 
