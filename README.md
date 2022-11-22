@@ -1,4 +1,5 @@
 # Configure Vault PKI with Azure HSM
+<img src="diagram.png" alt="Diagram" width="800"/>
 
 ## Activate Azure Managed HSM  
 
@@ -59,9 +60,8 @@ az keyvault key create --hsm-name <HSM Name> --name <HSM int PKI Key Name> --ops
 az keyvault key create --hsm-name <HSM Name> --name <HSM int Seal Key Name> --ops wrapKey unwrapKey --kty RSA-HSM --size 3072
 ```
 
-
-## Configure Vault
 ---
+## Configure Vault
 
 ### Configure Vault seal
 1. Update config file with seal info
